@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- VIBECODED BE MATT JARZABEK - MATT@JARZABEK.CA - PoC for personal art display - this is a proof of concept prototype, use/try at your own risk--> 
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -17,13 +18,18 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
 
-        /* Cursor hiding class applied only in fullscreen via JS */
         body.hide-cursor { cursor: none; }
 
         #frame-container { position: relative; width: 100%; height: 100%; }
 
+        /* Canvas Vignette Effect */
+        #frame-container::after {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            box-shadow: inset 0 0 150px rgba(0,0,0,0.9); pointer-events: none; z-index: 10;
+        }
+
         .art-layer {
-            position: absolute; top: -5%; left: -5%; width: 110%; height: 110%; /* Extra bleed for panning */
+            position: absolute; top: -5%; left: -5%; width: 110%; height: 110%;
             background-size: contain; background-position: center; background-repeat: no-repeat;
             transition: opacity 2s ease-in-out;
             opacity: 0;
@@ -31,7 +37,6 @@
 
         .active { opacity: 1; }
 
-        /* Cinematic Ken Burns Animations */
         .pan-1 { animation: pan1 60s linear forwards; }
         .pan-2 { animation: pan2 60s linear forwards; }
         .pan-3 { animation: pan3 60s linear forwards; }
@@ -42,7 +47,6 @@
         @keyframes pan3 { 0% { transform: scale(1) translate(0, 0); } 100% { transform: scale(1.15) translate(-2%, 2%); } }
         @keyframes pan4 { 0% { transform: scale(1) translate(0, 0); } 100% { transform: scale(1.15) translate(2%, -2%); } }
 
-        /* Progress Bar - Ultra Subtle */
         #progress-container {
             position: absolute; bottom: 0; left: 0; width: 100%; height: 2px;
             background: transparent; z-index: 150;
@@ -51,10 +55,9 @@
         #progress-bar {
             height: 100%; width: 0%; 
             background: rgba(255, 255, 255, 0.2); 
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); /* Helps it stay visible on pure white paintings */
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
         }
 
-        /* Left Controls Overlay */
         #ui-overlay {
             position: absolute; bottom: 20px; left: 20px; z-index: 100;
             display: flex; flex-direction: column; gap: 10px;
@@ -62,10 +65,19 @@
             opacity: 1; pointer-events: auto;
         }
 
+        /* Adjusted Info Panel for QR Code layout */
         .info-panel {
             background: var(--ui-bg); padding: 15px; border-radius: 8px;
             color: var(--text-color); border-left: 4px solid var(--ui-accent);
-            max-width: 450px; backdrop-filter: blur(5px);
+            max-width: 500px; backdrop-filter: blur(5px);
+            display: flex; gap: 15px; align-items: center;
+        }
+
+        .info-text { flex-grow: 1; }
+
+        .qr-code {
+            width: 70px; height: 70px; border-radius: 4px; border: 2px solid white;
+            background: white; display: none; /* Hidden until loaded */
         }
 
         .controls {
@@ -83,7 +95,6 @@
         button:hover { background: var(--ui-accent); color: black; }
         .btn-active { background: var(--ui-accent); color: black; }
 
-        /* Right History Panel */
         #history-panel {
             position: absolute; top: 20px; right: 20px; bottom: 20px;
             width: 320px; background: var(--ui-bg); border-radius: 8px;
@@ -111,7 +122,6 @@
         .hist-title { font-weight: bold; font-size: 0.9rem; margin-bottom: 4px; display: block;}
         .hist-artist { font-size: 0.75rem; color: #aaa; }
 
-        /* Spinner */
         .loading-spinner {
             position: absolute; top: 50%; left: 50%;
             transform: translate(-50%, -50%); display: none;
@@ -127,6 +137,9 @@
         h2, p { margin: 0 0 5px 0; }
         .meta { font-size: 0.85rem; color: #bbb; font-style: italic; }
         .hint { font-size: 0.75rem; color: var(--ui-accent); margin-top: 8px; opacity: 0.8;}
+        
+        .source-link { color: var(--ui-accent); text-decoration: none; transition: opacity 0.2s; }
+        .source-link:hover { text-decoration: underline; opacity: 0.8; }
 
     </style>
 </head>
@@ -143,10 +156,13 @@
 
     <div id="ui-overlay">
         <div class="info-panel" id="art-info">
-            <h2 id="title">Initializing Gallery...</h2>
-            <p id="artist">Connecting to Archives</p>
-            <div class="meta" id="details">Please wait</div>
-            <div class="hint">Hotkeys: [Space] Play/Pause | [←/→] Navigate | [S] Gallery | [F] Fullscreen</div>
+            <div class="info-text">
+                <h2 id="title">Initializing Gallery...</h2>
+                <p id="artist">Connecting to Archives</p>
+                <div class="meta" id="details">Please wait</div>
+                <div class="hint">Hotkeys: [Space] Play/Pause | [←/→] Navigate | [S] Gallery | [F] Fullscreen</div>
+            </div>
+            <img id="qr-code" class="qr-code" src="" alt="Scan to view on museum website">
         </div>
 
         <div class="controls">
@@ -154,6 +170,7 @@
             <button onclick="prevArt()">⏮ [←]</button>
             <button onclick="nextArt()">⏭ [→]</button>
             <select id="source-select" tabindex="-1">
+                <option value="all">🌍 Global Shuffle</option>
                 <option value="met">The Metropolitan Museum</option>
                 <option value="cma">Cleveland Museum of Art</option>
                 <option value="va">Victoria & Albert Museum (UK)</option>
@@ -179,6 +196,7 @@
         const MET_API_SEARCH = "https://collectionapi.metmuseum.org/public/collection/v1/search?isHighlight=true&hasImages=true&q=painting";
         const MET_API_OBJECT = "https://collectionapi.metmuseum.org/public/collection/v1/objects/";
         const VA_API = "https://api.vam.ac.uk/v2/objects/search?q_object_type=painting&images_exist=1&page_size=1&page=";
+        const QR_API = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=";
 
         let currentLayer = 1;
         let timer = null;
@@ -194,9 +212,9 @@
         const historyPanel = document.getElementById('history-panel');
         const pinBtn = document.getElementById('pin-btn');
         const progressBar = document.getElementById('progress-bar');
+        const qrCodeEl = document.getElementById('qr-code');
         let hideTimeout;
 
-        // --- Fullscreen & Cursor Logic ---
         function setUiVisible(isVisible) {
             if (isVisible) {
                 uiOverlay.classList.remove('ui-hidden');
@@ -205,10 +223,7 @@
             } else {
                 uiOverlay.classList.add('ui-hidden');
                 historyPanel.classList.add('ui-hidden');
-                
-                if (document.fullscreenElement) {
-                    document.body.classList.add('hide-cursor');
-                }
+                if (document.fullscreenElement) document.body.classList.add('hide-cursor');
             }
         }
 
@@ -222,12 +237,8 @@
         }
 
         document.addEventListener('fullscreenchange', () => {
-            if (document.fullscreenElement) {
-                resetIdleTimer(); 
-            } else {
-                document.body.classList.remove('hide-cursor');
-                setUiVisible(true); 
-            }
+            if (document.fullscreenElement) resetIdleTimer(); 
+            else { document.body.classList.remove('hide-cursor'); setUiVisible(true); }
         });
 
         document.addEventListener('mousemove', resetIdleTimer);
@@ -246,13 +257,10 @@
             }
         }
 
-        // --- Hardware Controller / Keyboard Mapping ---
         window.addEventListener('keydown', (e) => {
             const key = e.key.toLowerCase();
-            if ([' ', 'arrowright', 'arrowleft', 'tab', 'f', 's', 'm'].includes(key)) { e.preventDefault(); }
-            
+            if ([' ', 'arrowright', 'arrowleft', 'tab', 'f', 's', 'm'].includes(key)) e.preventDefault();
             resetIdleTimer();
-
             if (key === 'tab' || key === 'm') togglePinUI();
             else if (key === ' ') togglePlay();
             else if (key === 'arrowright') nextArt();
@@ -261,36 +269,28 @@
             else if (key === 'f') toggleFullscreen();
         });
 
-        // --- Progress Bar Logic ---
         function startProgressBar() {
             const ms = parseInt(document.getElementById('speed-select').value);
             progressBar.style.transition = 'none';
             progressBar.style.width = '0%';
-            
             void progressBar.offsetWidth; 
-            
             progressBar.style.transition = `width ${ms}ms linear`;
             progressBar.style.width = '100%';
         }
 
         function pauseProgressBar() {
-            const computedStyle = window.getComputedStyle(progressBar);
-            const currentWidth = computedStyle.getPropertyValue('width');
+            const currentWidth = window.getComputedStyle(progressBar).getPropertyValue('width');
             progressBar.style.transition = 'none';
             progressBar.style.width = currentWidth;
         }
 
-        // --- Core Functions ---
         function togglePlay() {
             isPlaying = !isPlaying;
             const btn = document.getElementById('play-btn');
             if (isPlaying) {
                 btn.innerText = "⏸ [Space]";
                 btn.classList.remove('btn-active');
-                if (currentHistoryIndex === 0) {
-                    startProgressBar();
-                    resetTimer();
-                }
+                if (currentHistoryIndex === 0) { startProgressBar(); resetTimer(); }
             } else {
                 btn.innerText = "▶ [Space]";
                 btn.classList.add('btn-active');
@@ -316,10 +316,15 @@
             
             progressBar.style.transition = 'none';
             progressBar.style.width = '0%';
+            document.getElementById('loading').style.display = 'block';
 
-            const source = document.getElementById('source-select').value;
-            const loading = document.getElementById('loading');
-            loading.style.display = 'block';
+            let source = document.getElementById('source-select').value;
+            
+            // Handle Global Shuffle
+            if (source === 'all') {
+                const sources = ['met', 'cma', 'va'];
+                source = sources[Math.floor(Math.random() * sources.length)];
+            }
 
             try {
                 if (source === 'cma') {
@@ -328,10 +333,8 @@
                     const json = await res.json();
                     const data = json.data[0];
                     
-                    let artistDisplay = "Unknown Artist";
-                    if (data.creators && data.creators.length > 0) {
-                        artistDisplay = data.creators[0].description || data.creators[0].name || "Unknown Artist";
-                    }
+                    let artistDisplay = data.creators && data.creators.length > 0 
+                        ? (data.creators[0].description || data.creators[0].name) : "Unknown Artist";
                     
                     updateDisplay({
                         id: `cma-${data.id}`,
@@ -339,7 +342,8 @@
                         artist: artistDisplay,
                         date: data.creation_date || "Unknown Date",
                         imgUrl: data.images.web.url,
-                        source: "Cleveland Museum of Art"
+                        source: "Cleveland Museum of Art",
+                        pageUrl: data.url || `https://www.clevelandart.org/art/${data.id}`
                     });
 
                 } else if (source === 'va') {
@@ -347,10 +351,9 @@
                     const res = await fetch(VA_API + randomPage);
                     const json = await res.json();
                     
-                    if (!json.records || json.records.length === 0) throw new Error("Empty V&A data");
+                    if (!json.records || json.records.length === 0) throw new Error("Empty V&A");
                     const data = json.records[0];
-                    
-                    if (!data._primaryImageId) throw new Error("No V&A image ID");
+                    if (!data._primaryImageId) throw new Error("No V&A image");
                     
                     updateDisplay({
                         id: `va-${data.systemNumber}`,
@@ -358,7 +361,8 @@
                         artist: data._primaryMaker?.name || "Unknown Artist",
                         date: data._primaryDate || "Unknown Date",
                         imgUrl: `https://framemark.vam.ac.uk/collections/${data._primaryImageId}/full/!1200,1200/0/default.jpg`,
-                        source: "Victoria and Albert Museum, London"
+                        source: "Victoria & Albert Museum",
+                        pageUrl: `https://collections.vam.ac.uk/item/${data.systemNumber}`
                     });
 
                 } else {
@@ -371,7 +375,7 @@
                     const objRes = await fetch(MET_API_OBJECT + randomId);
                     const data = await objRes.json();
                     
-                    if (!data.primaryImage) throw new Error("No primary image");
+                    if (!data.primaryImage) throw new Error("No image");
                     
                     updateDisplay({
                         id: `met-${data.objectID}`,
@@ -379,7 +383,8 @@
                         artist: data.artistDisplayName || "Unknown Artist",
                         date: data.objectDate || "Unknown Date",
                         imgUrl: data.primaryImage,
-                        source: "The Metropolitan Museum of Art"
+                        source: "The Metropolitan Museum of Art",
+                        pageUrl: data.objectURL
                     });
                 }
             } catch (e) {
@@ -406,7 +411,20 @@
                 
                 document.getElementById('title').innerText = info.title;
                 document.getElementById('artist').innerText = info.artist;
-                document.getElementById('details').innerText = `${info.date} • ${info.source}`;
+                
+                let linkHtml = info.pageUrl 
+                    ? `<a href="${info.pageUrl}" target="_blank" class="source-link" rel="noopener noreferrer">${info.source} 🔗</a>`
+                    : info.source;
+                document.getElementById('details').innerHTML = `${info.date} • ${linkHtml}`;
+                
+                // Handle QR Code Gen
+                if (info.pageUrl) {
+                    qrCodeEl.src = QR_API + encodeURIComponent(info.pageUrl);
+                    qrCodeEl.style.display = "block";
+                } else {
+                    qrCodeEl.style.display = "none";
+                }
+
                 document.getElementById('loading').style.display = 'none';
                 
                 currentLayer = nextLayerNum;
@@ -458,19 +476,10 @@
             updateDisplay(art, true);
         }
 
-        function prevArt() {
-            if (artHistory.length > 0 && currentHistoryIndex < artHistory.length - 1) {
-                loadFromHistory(currentHistoryIndex + 1);
-            }
-        }
-
+        function prevArt() { if (artHistory.length > 0 && currentHistoryIndex < artHistory.length - 1) loadFromHistory(currentHistoryIndex + 1); }
         function nextArt() {
-            if (currentHistoryIndex > 0) {
-                loadFromHistory(currentHistoryIndex - 1);
-            } else {
-                if (!isPlaying) togglePlay(); 
-                fetchArt();
-            }
+            if (currentHistoryIndex > 0) loadFromHistory(currentHistoryIndex - 1);
+            else { if (!isPlaying) togglePlay(); fetchArt(); }
         }
 
         function highlightHistoryItem(id) {
@@ -488,21 +497,14 @@
         }
 
         function toggleFullscreen() {
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen();
-            } else {
-                document.exitFullscreen();
-            }
+            if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+            else document.exitFullscreen();
         }
 
-        // Init
         fetchArt();
         resetIdleTimer();
         document.getElementById('speed-select').onchange = () => {
-            if (isPlaying) {
-                startProgressBar();
-                resetTimer();
-            }
+            if (isPlaying) { startProgressBar(); resetTimer(); }
         };
         document.getElementById('source-select').onchange = fetchArt;
 
