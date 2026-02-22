@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VIBECODED BE MATT JARZABEK - MATT@JARZABEK.CA - PoC for personal art display - this is a proof of concept prototype, use/try at your own risk--> 
+<!-- VIBECODED BE MATT JARZABEK - MATT@JARZABEK.CA - PoC for personal art display - this is a proof of concept prototype, use/try at your own risk-->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -65,7 +65,6 @@
             opacity: 1; pointer-events: auto;
         }
 
-        /* Adjusted Info Panel for QR Code layout */
         .info-panel {
             background: var(--ui-bg); padding: 15px; border-radius: 8px;
             color: var(--text-color); border-left: 4px solid var(--ui-accent);
@@ -77,7 +76,7 @@
 
         .qr-code {
             width: 70px; height: 70px; border-radius: 4px; border: 2px solid white;
-            background: white; display: none; /* Hidden until loaded */
+            background: white; display: none;
         }
 
         .controls {
@@ -192,8 +191,9 @@
     </div>
 
     <script>
+        // Removed isHighlight=true from MET to unlock tens of thousands of paintings
         const CMA_API = "https://openaccess-api.clevelandart.org/api/artworks/?has_image=1&type=Painting&limit=1&skip=";
-        const MET_API_SEARCH = "https://collectionapi.metmuseum.org/public/collection/v1/search?isHighlight=true&hasImages=true&q=painting";
+        const MET_API_SEARCH = "https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&q=painting";
         const MET_API_OBJECT = "https://collectionapi.metmuseum.org/public/collection/v1/objects/";
         const VA_API = "https://api.vam.ac.uk/v2/objects/search?q_object_type=painting&images_exist=1&page_size=1&page=";
         const QR_API = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=";
@@ -320,16 +320,18 @@
 
             let source = document.getElementById('source-select').value;
             
-            // Handle Global Shuffle
             if (source === 'all') {
                 const sources = ['met', 'cma', 'va'];
                 source = sources[Math.floor(Math.random() * sources.length)];
             }
 
+            // Cache Buster string added to bypass aggressive browser memory
+            const cb = "&_t=" + Date.now();
+
             try {
                 if (source === 'cma') {
                     const randomSkip = Math.floor(Math.random() * 3500);
-                    const res = await fetch(CMA_API + randomSkip);
+                    const res = await fetch(CMA_API + randomSkip + cb);
                     const json = await res.json();
                     const data = json.data[0];
                     
@@ -348,7 +350,7 @@
 
                 } else if (source === 'va') {
                     const randomPage = Math.floor(Math.random() * 2000) + 1;
-                    const res = await fetch(VA_API + randomPage);
+                    const res = await fetch(VA_API + randomPage + cb);
                     const json = await res.json();
                     
                     if (!json.records || json.records.length === 0) throw new Error("Empty V&A");
@@ -372,7 +374,8 @@
                         metIds = json.objectIDs;
                     }
                     const randomId = metIds[Math.floor(Math.random() * metIds.length)];
-                    const objRes = await fetch(MET_API_OBJECT + randomId);
+                    // Cache buster for MET object fetch
+                    const objRes = await fetch(MET_API_OBJECT + randomId + "?_t=" + Date.now());
                     const data = await objRes.json();
                     
                     if (!data.primaryImage) throw new Error("No image");
@@ -390,7 +393,7 @@
             } catch (e) {
                 console.warn("Retrying:", e.message);
                 isFetching = false;
-                fetchArt();
+                fetchArt(); // Will instantly grab a new random ID/Skip on failure
             }
         }
 
@@ -417,7 +420,6 @@
                     : info.source;
                 document.getElementById('details').innerHTML = `${info.date} • ${linkHtml}`;
                 
-                // Handle QR Code Gen
                 if (info.pageUrl) {
                     qrCodeEl.src = QR_API + encodeURIComponent(info.pageUrl);
                     qrCodeEl.style.display = "block";
